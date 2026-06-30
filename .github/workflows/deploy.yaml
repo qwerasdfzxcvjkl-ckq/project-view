@@ -1,9 +1,8 @@
-name: Deploy GitHub Pages
+name: Long Usage
 
 on:
   push:
     branches: ["main"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,29 +14,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  convert_and_build:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pandoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc
+      - name: Convert project.md to HTML (like build.sh)
+        uses: docker://pandoc/core:3.8
+        with:
+          args: >-
+            static/project.md
+            -t html
+            --strip-comments
+            --standalone=false
+            -o build/project.html
 
-      - name: Run build.sh
+      - name: Build index.html (like build.sh)
         run: |
-          chmod +x ./build.sh
-          ./build.sh
+          sed "/<!-- PROJECT_MD_HTML -->/{
+            r build/project.html
+            d
+          }" static/prebuild.html > index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./  # uploads the generated index.html + your build/ folder artifacts
+          path: ./
 
   deploy:
-    needs: build
-    runs-on: ubuntu-latest
+    needs: convert_and_build
+    runs-on: ubuntu-24.04
     steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
